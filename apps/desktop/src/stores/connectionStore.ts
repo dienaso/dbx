@@ -6590,6 +6590,15 @@ export const useConnectionStore = defineStore("connection", () => {
     clearConnectionError(normalized.id);
   }
 
+  function cancelTreeNodeLoad(nodeId: string): void {
+    // Supersede any in-flight loader for this node so a collapse issued while
+    // the load is still running (or a loader that never resolves) cannot
+    // re-expand the node via its trailing `targetNode.isExpanded = true`.
+    treeNodeLoads.invalidatePrefix(nodeId);
+    const node = findNode(treeNodes.value, nodeId);
+    if (node) node.isLoading = false;
+  }
+
   return {
     connections,
     activeConnectionId,
@@ -6662,6 +6671,7 @@ export const useConnectionStore = defineStore("connection", () => {
     isTreeNodeChildrenLoaded,
     canUseLoadedTreeNodeToggle,
     releaseCollapsedTreeNodeChildren,
+    cancelTreeNodeLoad,
     setBeforeConnectHandler,
     initFromDisk,
     loadDatabases,
