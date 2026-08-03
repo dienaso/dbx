@@ -65,4 +65,55 @@ describe("coerceDataGridCellValue", () => {
     expect(coerceDataGridCellValue(options)).toBeNull();
     expect(coerceDataGridCellValue({ ...options, preserveEmptyString: true })).toBe("");
   });
+
+  it("strips thousands separators before numeric coercion", () => {
+    expect(
+      coerceDataGridCellValue({
+        value: "1,234.50",
+        oldValue: 1234.5,
+        databaseType: "sqlserver",
+        columnInfo: { data_type: "float" },
+      }),
+    ).toBe(1234.5);
+
+    expect(
+      coerceDataGridCellValue({
+        value: "10,000",
+        oldValue: 10000,
+        databaseType: "mysql",
+        columnInfo: { data_type: "int" },
+      }),
+    ).toBe(10000);
+
+    expect(
+      coerceDataGridCellValue({
+        value: "-10,000.00",
+        oldValue: "-10000.00",
+        databaseType: "sqlserver",
+        columnInfo: { data_type: "decimal(18,2)" },
+      }),
+    ).toBe("-10000.00");
+  });
+
+  it("does not strip commas when the column is not numeric", () => {
+    expect(
+      coerceDataGridCellValue({
+        value: "10,000.00",
+        oldValue: "10,000.00",
+        databaseType: "sqlserver",
+        columnInfo: { data_type: "varchar(255)" },
+      }),
+    ).toBe("10,000.00");
+  });
+
+  it("leaves invalid thousand-grouping values untouched", () => {
+    expect(
+      coerceDataGridCellValue({
+        value: "1,23",
+        oldValue: 123,
+        databaseType: "sqlserver",
+        columnInfo: { data_type: "decimal(18,2)" },
+      }),
+    ).toBe("1,23");
+  });
 });

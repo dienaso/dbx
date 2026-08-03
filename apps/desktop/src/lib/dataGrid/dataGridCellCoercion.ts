@@ -10,8 +10,13 @@ export interface CoerceDataGridCellValueOptions {
 }
 
 export function coerceDataGridCellValue(options: CoerceDataGridCellValueOptions): GridCellValue {
-  const { value, oldValue } = options;
+  let { value, oldValue } = options;
   if (value === "" && oldValue === null && !options.preserveEmptyString) return null;
+  // Excel-pasted values often carry thousands separators (10,000.00) that make
+  // Number() return NaN and the literal fail to convert on the server.
+  if (isNumericColumn(options.columnInfo)) {
+    value = stripThousandSeparators(value);
+  }
   const postgresArrayValue = coercePostgresArrayValue(options);
   if (postgresArrayValue !== undefined) return postgresArrayValue;
   if (typeof oldValue === "number") {
@@ -114,6 +119,18 @@ function shouldPreserveNumericTextForType(dataType: string | undefined, text: st
 
 function normalizeDataType(dataType: string | undefined): string {
   return (dataType ?? "").trim().toLowerCase();
+}
+
+function isNumericColumn(columnInfo: Pick<ColumnInfo, "data_type"> | undefined): boolean {
+  return /^(?:bit|tinyint|smallint|mediumint|int|integer|bigint|serial|smallserial|bigserial|int2|int4|int8|int16|int32|int64|uint|uint8|uint16|uint32|uint64|decimal|numeric|number|dec|fixed|float|double|real|money|smallmoney|binary_float|binary_double|bigdecimal|bignumeric|big_numeric)\b/.test(
+    normalizeDataType(columnInfo?.data_type),
+  );
+}
+
+function stripThousandSeparators(value: string): string {
+  const trimmed = value.trim();
+  if (!/^[+-]?\d{1,3}(,\d{3})+(\.\d+)?$/.test(trimmed)) return value;
+  return trimmed.replace(/,/g, "");
 }
 
 function isOracleDateColumn(databaseType: DatabaseType | undefined, columnInfo: Pick<ColumnInfo, "data_type"> | undefined): boolean {
