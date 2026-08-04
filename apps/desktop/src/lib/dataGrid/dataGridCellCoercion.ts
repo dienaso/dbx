@@ -110,12 +110,15 @@ function normalizeGroupedNumberText(value: string, columnInfo: Pick<ColumnInfo, 
 
 function stripUnambiguousThousandSeparators(value: string): string {
   const trimmed = value.trim();
-  if (!/^[+-]?\d{1,3}(,\d{3})+(\.\d+)?$/.test(trimmed)) return value;
+  const match = trimmed.match(/^([+-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?)([eE][+-]?\d+)?$/);
+  if (!match) return value;
+  const mantissa = match[1];
+  const exponent = match[2] ?? "";
   // A lone "1,000" (one comma group, no decimal point) is ambiguous: in
   // comma-decimal locales it reads as 1.000. Only strip when a decimal point
   // is present (1,234.56) or there are multiple comma groups (1,234,567).
-  if (/^[+-]?\d{1,3},\d{3}$/.test(trimmed)) return value;
-  return trimmed.replace(/,/g, "");
+  if (/^[+-]?\d{1,3},\d{3}$/.test(mantissa)) return value;
+  return `${mantissa.replace(/,/g, "")}${exponent}`;
 }
 
 function postgresArrayElementDataType(dataType: string | undefined): string {

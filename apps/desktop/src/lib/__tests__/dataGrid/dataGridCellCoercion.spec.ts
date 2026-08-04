@@ -106,6 +106,26 @@ describe("coerceDataGridCellValue", () => {
     ).toBe("10000.00");
   });
 
+  it("normalizes grouped mantissas with scientific notation", () => {
+    expect(
+      coerceDataGridCellValue({
+        value: "1,234.50e2",
+        oldValue: "0",
+        databaseType: "sqlserver",
+        columnInfo: { data_type: "decimal(18,2)" },
+      }),
+    ).toBe("1234.50e2");
+
+    expect(
+      coerceDataGridCellValue({
+        value: "-1,234.5E-2",
+        oldValue: "0",
+        databaseType: "sqlserver",
+        columnInfo: { data_type: "decimal(18,2)" },
+      }),
+    ).toBe("-1234.5E-2");
+  });
+
   it("preserves exact text for grouped integers beyond Number.MAX_SAFE_INTEGER", () => {
     expect(
       coerceDataGridCellValue({
@@ -126,6 +146,15 @@ describe("coerceDataGridCellValue", () => {
         columnInfo: { data_type: "int" },
       }),
     ).toBe("10,000");
+
+    expect(
+      coerceDataGridCellValue({
+        value: "1,000e3",
+        oldValue: 1000000,
+        databaseType: "sqlserver",
+        columnInfo: { data_type: "float" },
+      }),
+    ).toBe("1,000e3");
   });
 
   it("does not strip commas when the column is not numeric", () => {
