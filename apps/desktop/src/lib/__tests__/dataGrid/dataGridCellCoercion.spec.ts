@@ -66,7 +66,7 @@ describe("coerceDataGridCellValue", () => {
     expect(coerceDataGridCellValue({ ...options, preserveEmptyString: true })).toBe("");
   });
 
-  it("strips thousands separators before numeric coercion", () => {
+  it("strips unambiguous thousands separators before numeric coercion", () => {
     expect(
       coerceDataGridCellValue({
         value: "1,234.50",
@@ -78,12 +78,12 @@ describe("coerceDataGridCellValue", () => {
 
     expect(
       coerceDataGridCellValue({
-        value: "10,000",
-        oldValue: 10000,
-        databaseType: "mysql",
+        value: "1,234,567",
+        oldValue: 1234567,
+        databaseType: "sqlserver",
         columnInfo: { data_type: "int" },
       }),
-    ).toBe(10000);
+    ).toBe(1234567);
 
     expect(
       coerceDataGridCellValue({
@@ -93,6 +93,39 @@ describe("coerceDataGridCellValue", () => {
         columnInfo: { data_type: "decimal(18,2)" },
       }),
     ).toBe("-10000.00");
+  });
+
+  it("preserves exact text for grouped decimals", () => {
+    expect(
+      coerceDataGridCellValue({
+        value: "10,000.00",
+        oldValue: "10000.50",
+        databaseType: "sqlserver",
+        columnInfo: { data_type: "decimal(18,2)" },
+      }),
+    ).toBe("10000.00");
+  });
+
+  it("preserves exact text for grouped integers beyond Number.MAX_SAFE_INTEGER", () => {
+    expect(
+      coerceDataGridCellValue({
+        value: "9,007,199,254,740,993",
+        oldValue: 9007199254740992,
+        databaseType: "mysql",
+        columnInfo: { data_type: "bigint" },
+      }),
+    ).toBe("9007199254740993");
+  });
+
+  it("leaves ambiguous single-group values untouched", () => {
+    expect(
+      coerceDataGridCellValue({
+        value: "10,000",
+        oldValue: 10000,
+        databaseType: "sqlserver",
+        columnInfo: { data_type: "int" },
+      }),
+    ).toBe("10,000");
   });
 
   it("does not strip commas when the column is not numeric", () => {
