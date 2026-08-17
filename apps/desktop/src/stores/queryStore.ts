@@ -6001,6 +6001,7 @@ export const useQueryStore = defineStore("query", () => {
       executionId: uuid(),
       numericColumnRightAlign: settings.numericColumnRightAlign,
       columnComments,
+      identifierQuote: connStore.connectionIdentifierQuote(tab.connectionId),
     };
 
     const tracker = useExportTracker();
