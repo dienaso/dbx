@@ -86,6 +86,7 @@ async fn postgres_tsvector_generated_columns_are_readable_and_omitted_from_inser
 
     let export_insert = build_export_insert_statements(BuildExportInsertStatementsOptions {
         database_type: Some(DatabaseType::Postgres),
+        identifier_quote: None,
         schema: Some(schema.clone()),
         table_name: Some("articles".to_string()),
         qualified_table_name: None,
