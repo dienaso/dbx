@@ -426,6 +426,7 @@ export function useDataGridExport(options: UseDataGridExportOptions) {
     }
     return buildDataGridCopyInsertStatement({
       databaseType: databaseType.value,
+      identifierQuote: options.identifierQuote?.value,
       tableMeta: tableMeta.value,
       columns: data.columns,
       columnTypes: data.columnTypes,

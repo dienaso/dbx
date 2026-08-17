@@ -70,6 +70,7 @@ async fn postgres_tsvector_generated_columns_are_readable_and_omitted_from_inser
     };
     let copy_insert = build_data_grid_copy_insert_statement(DataGridCopyInsertStatementOptions {
         database_type: Some(DatabaseType::Postgres),
+        identifier_quote: None,
         table_meta: Some(table_meta),
         columns: result.columns.clone(),
         column_types: None,
