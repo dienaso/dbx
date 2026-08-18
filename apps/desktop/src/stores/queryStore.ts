@@ -5966,6 +5966,7 @@ export const useQueryStore = defineStore("query", () => {
       exportTableName: options.exportTableName,
       exportColumnTypes: options.exportColumnTypes,
       numericColumnRightAlign: settings.numericColumnRightAlign,
+      identifierQuote: connStore.connectionIdentifierQuote(location.connectionId),
     };
   }
 
