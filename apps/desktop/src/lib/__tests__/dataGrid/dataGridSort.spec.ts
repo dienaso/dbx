@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { compareDataGridValues, simpleDataGridOrderByColumn, simpleDataGridOrderByMatchesSort, simpleDataGridOrderByReferencesMissingColumn } from "@/lib/dataGrid/dataGridSort";
+import { compareDataGridValues, databaseSortSupportedForDatabase, simpleDataGridOrderByColumn, simpleDataGridOrderByMatchesSort, simpleDataGridOrderByReferencesMissingColumn } from "@/lib/dataGrid/dataGridSort";
+
+describe("databaseSortSupportedForDatabase", () => {
+  it("keeps database-side sorting for databases that support ORDER BY", () => {
+    expect(databaseSortSupportedForDatabase("postgres")).toBe(true);
+    expect(databaseSortSupportedForDatabase("mysql")).toBe(true);
+    expect(databaseSortSupportedForDatabase(undefined)).toBe(true);
+  });
+
+  it("disables database-side sorting for Cassandra browse queries", () => {
+    expect(databaseSortSupportedForDatabase("cassandra")).toBe(false);
+  });
+});
 
 describe("simpleDataGridOrderByColumn", () => {
   it.each([
