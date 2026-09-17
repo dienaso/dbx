@@ -193,6 +193,18 @@ describe("tableMetaWithoutOptionalDatabaseQualifier — copy extractors (#9326)"
   it("returns undefined tableMeta unchanged", () => {
     expect(tableMetaWithoutOptionalDatabaseQualifier(undefined, "mysql", false)).toBeUndefined();
   });
+
+  it("keeps qualifiers for Doris/StarRocks external catalogs", () => {
+    // External-catalog tables are only addressable as catalog.database.table,
+    // mirroring the SELECT-template rule in qualifiedTableName.
+    const externalCatalogMeta = { catalog: "ext", database: "db", tableName: "t" };
+    expect(tableMetaWithoutOptionalDatabaseQualifier(externalCatalogMeta, "doris", false)).toBe(externalCatalogMeta);
+    expect(tableMetaWithoutOptionalDatabaseQualifier(externalCatalogMeta, "starrocks", false)).toBe(externalCatalogMeta);
+  });
+
+  it("still strips the internal-catalog database qualifier", () => {
+    expect(tableMetaWithoutOptionalDatabaseQualifier({ catalog: "internal", database: "db", tableName: "t" }, "doris", false)).toEqual({ catalog: "internal", schema: undefined, database: undefined, tableName: "t" });
+  });
 });
 
 describe("qualifiedTableName — GBase 8s", () => {
