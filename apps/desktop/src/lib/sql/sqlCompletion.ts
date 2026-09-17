@@ -2203,8 +2203,9 @@ function currentLineBlockEnd(sql: string, cursor: number, start: number): number
   while (lineStart < sql.length) {
     const lineEnd = sql.indexOf("\n", lineStart);
     const boundedLineEnd = lineEnd >= 0 ? lineEnd : sql.length;
+    const originalTrimmed = sql.slice(lineStart, boundedLineEnd).trimStart();
     const trimmed = masked.slice(lineStart, boundedLineEnd).trimStart();
-    if (lineStart > start && (!trimmed || /^(get|post|put|delete|patch|head)\s+\//i.test(trimmed))) {
+    if (lineStart > start && (!originalTrimmed || /^(get|post|put|delete|patch|head)\s+\//i.test(originalTrimmed))) {
       return lineStart;
     }
     // The cursor's own line always belongs to the block; only a following

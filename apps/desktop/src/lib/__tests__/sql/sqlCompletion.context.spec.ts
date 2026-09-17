@@ -1486,6 +1486,26 @@ describe("select alias visibility", () => {
 });
 
 describe("line block statement boundary", () => {
+  it.each(["-- explanatory comment", "/* explanatory comment */", "/*\n explanatory comment\n*/"])("keeps column sources after %s", (comment) => {
+    const sql = `select na\n${comment}\nfrom users`;
+    const cursor = "select na".length;
+    const context = getSqlCompletionContext(sql, cursor, { databaseType: "iris" });
+
+    expect(context.referencedTables.map((table) => table.name)).toEqual(["users"]);
+    const items = buildSqlCompletionItems(sql, cursor, {
+      databaseType: "iris",
+      tables: [{ name: "users", type: "table" }],
+      columnsByTable: new Map([["users", [{ name: "name", table: "users", key: "name" } as never]]]),
+    });
+    expect(items.some((item) => item.label === "name")).toBe(true);
+  });
+
+  it("still ends the block at a real blank line", () => {
+    const sql = "select na\n\nfrom users";
+    const context = getSqlCompletionContext(sql, "select na".length, { databaseType: "iris" });
+    expect(context.referencedTables).toEqual([]);
+  });
+
   it("stops the active block at a top-level statement line without a semicolon", () => {
     // t8y2/dbx#9370: two semicolon-free SELECT lines — completion at the first
     // statement's WHERE must not pull the second statement's table in.
