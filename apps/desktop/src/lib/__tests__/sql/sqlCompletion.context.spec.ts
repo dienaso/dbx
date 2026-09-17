@@ -1484,3 +1484,42 @@ describe("select alias visibility", () => {
     expect(untyped.selectAliases).toContain("cnt");
   });
 });
+
+describe("line block statement boundary", () => {
+  it("stops the active block at a top-level statement line without a semicolon", () => {
+    // t8y2/dbx#9370: two semicolon-free SELECT lines — completion at the first
+    // statement's WHERE must not pull the second statement's table in.
+    const sql = "select * from CT_Nation where\nselect * from CT_CityArea";
+    const cursor = sql.indexOf("where") + "where".length;
+    const context = getSqlCompletionContext(sql, cursor, { databaseType: "iris" });
+
+    expect(context.referencedTables.map((table) => table.name)).toEqual(["CT_Nation"]);
+  });
+
+  it("keeps column completion unqualified once the second statement is excluded", () => {
+    const sql = "select * from CT_Nation where c\nselect * from CT_CityArea";
+    const cursor = sql.indexOf("where") + "where c".length;
+    const items = buildSqlCompletionItems(sql, cursor, {
+      databaseType: "iris",
+      tables: [
+        { name: "CT_Nation", type: "table" },
+        { name: "CT_CityArea", type: "table" },
+      ],
+      columnsByTable: new Map([
+        ["CT_Nation", [{ name: "CTNAT_Code", table: "CT_Nation", key: "k1" } as never]],
+        ["CT_CityArea", [{ name: "CITAREA_Code", table: "CT_CityArea", key: "k2" } as never]],
+      ]),
+    });
+
+    expect(items.some((item) => item.label === "CT_CityArea.CITAREA_Code")).toBe(false);
+    expect(items.some((item) => item.label === "CTNAT_Code")).toBe(true);
+  });
+
+  it("does not end the block at a SELECT line inside parentheses", () => {
+    const sql = "select *\nfrom (\n  select id from users\n) x\nwhere |";
+    const cursor = sql.length;
+    const context = getSqlCompletionContext(sql, cursor, { databaseType: "mysql" });
+
+    expect(context.referencedTables.map((table) => table.name)).toEqual(expect.arrayContaining(["users"]));
+  });
+});
