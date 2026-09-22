@@ -8426,10 +8426,7 @@ mod tests {
                 schema: None,
                 table_name: "orders".to_string(),
                 primary_keys: vec!["id".to_string()],
-                columns: Some(vec![
-                    column("id", "bigint", false, None),
-                    column("detail_id", "bigint", true, None),
-                ]),
+                columns: Some(vec![column("id", "bigint", false, None), column("detail_id", "bigint", true, None)]),
             },
             columns: vec!["id".to_string(), "detail_id".to_string()],
             source_columns: None,
@@ -8455,20 +8452,14 @@ mod tests {
                 schema: None,
                 table_name: "orders".to_string(),
                 primary_keys: vec!["id".to_string()],
-                columns: Some(vec![
-                    column("id", "bigint", false, None),
-                    column("detail_id", "bigint", true, None),
-                ]),
+                columns: Some(vec![column("id", "bigint", false, None), column("detail_id", "bigint", true, None)]),
             },
             column_name: "detail_id".to_string(),
             value: Value::Null,
             where_input: "tenant_id = 1".to_string(),
         });
 
-        assert_eq!(
-            statement,
-            Some("UPDATE `orders` SET `detail_id` = NULL WHERE (tenant_id = 1);".to_string())
-        );
+        assert_eq!(statement, Some("UPDATE `orders` SET `detail_id` = NULL WHERE (tenant_id = 1);".to_string()));
     }
 
     #[test]
