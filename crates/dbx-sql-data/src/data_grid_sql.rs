@@ -1060,25 +1060,17 @@ fn is_sqlserver_legacy_profile(driver_profile: Option<&str>) -> bool {
 }
 
 pub fn build_data_grid_count_sql(options: DataGridCountSqlOptions) -> String {
-    let table = if crate::sql_dialect::uses_connection_identifier_quote(
+    // Keep the reference identical to the one the grid's SELECT uses: Caché/IRIS
+    // reject quoted ordinary names when delimited identifiers are disabled, so
+    // the count must not be the only statement that quotes them (#8929).
+    let table = data_grid_qualified_table_name(
         options.database_type,
+        options.catalog.as_deref(),
+        options.schema.as_deref(),
+        options.database.as_deref(),
+        &options.table_name,
         options.identifier_quote.as_deref(),
-    ) {
-        crate::sql_dialect::table_data_qualified_table_name(
-            options.database_type,
-            options.schema.as_deref(),
-            &options.table_name,
-            options.identifier_quote.as_deref(),
-        )
-    } else {
-        crate::sql_dialect::qualified_table_name_with_catalog(
-            options.database_type,
-            options.catalog.as_deref(),
-            options.schema.as_deref(),
-            options.database.as_deref(),
-            &options.table_name,
-        )
-    };
+    );
     let predicate = crate::sql_dialect::normalize_where_input(options.where_input.as_deref());
     let where_clause = if predicate.is_empty() { String::new() } else { format!(" WHERE ({predicate})") };
     let hint = options.count_hint.as_deref().unwrap_or("");
@@ -3424,10 +3416,19 @@ fn find_column_index(database_type: Option<DatabaseType>, columns: &[Option<Stri
     }
     // PostgreSQL can have distinct `id` and quoted `"ID"` columns. Only
     // dialects whose result metadata is known to drift in case may fall back,
-    // and even then a case-only match must be unique.
+    // and even then a case-only match must be unique. Vastbase reports result
+    // labels upper-cased (`ID`) while primary-key metadata keeps the stored
+    // spelling (`id`), so the grid's primary-key badge and the save path have
+    // to agree on the same column (#8797).
     if !matches!(
         database_type,
-        Some(DatabaseType::Goldendb | DatabaseType::Kingbase | DatabaseType::Tdengine | DatabaseType::Hive)
+        Some(
+            DatabaseType::Goldendb
+                | DatabaseType::Kingbase
+                | DatabaseType::Tdengine
+                | DatabaseType::Hive
+                | DatabaseType::Vastbase
+        )
     ) {
         return None;
     }
@@ -3977,6 +3978,10 @@ mod tests {
 
     #[test]
     fn iris_data_grid_count_queries_the_table_without_wrapping_top_sql() {
+        // Caché 2016 runs with delimited identifiers disabled, where a quoted
+        // ordinary name is not a table reference — the count must use the same
+        // unquoted spelling as the grid SELECT (#8929). Delimited names keep
+        // their quotes.
         assert_eq!(
             build_data_grid_count_sql(DataGridCountSqlOptions {
                 database_type: Some(DatabaseType::Iris),
@@ -3988,7 +3993,20 @@ mod tests {
                 where_input: Some("SSUSR_IsActive = 'Y'".to_string()),
                 count_hint: None,
             }),
-            "SELECT COUNT(*) AS cnt FROM \"SS\".\"SS_User\" WHERE (SSUSR_IsActive = 'Y')"
+            "SELECT COUNT(*) AS cnt FROM SS.SS_User WHERE (SSUSR_IsActive = 'Y')"
+        );
+        assert_eq!(
+            build_data_grid_count_sql(DataGridCountSqlOptions {
+                database_type: Some(DatabaseType::Iris),
+                identifier_quote: None,
+                catalog: None,
+                database: None,
+                schema: Some("App Schema".to_string()),
+                table_name: "Patient Record".to_string(),
+                where_input: None,
+                count_hint: None,
+            }),
+            "SELECT COUNT(*) AS cnt FROM \"App Schema\".\"Patient Record\""
         );
     }
 
@@ -6826,6 +6844,84 @@ mod tests {
             ),
             None
         );
+    }
+
+    #[test]
+    fn vastbase_column_index_prefers_exact_case_and_rejects_ambiguous_fallback() {
+        let columns = vec![Some("id".to_string()), Some("ID".to_string())];
+
+        assert_eq!(find_column_index(Some(DatabaseType::Vastbase), &columns, "ID"), Some(1));
+        assert_eq!(find_column_index(Some(DatabaseType::Vastbase), &columns[..1], "ID"), Some(0));
+        assert_eq!(
+            find_column_index(Some(DatabaseType::Vastbase), &[Some("id".to_string()), Some("Id".to_string())], "ID"),
+            None
+        );
+    }
+
+    /// Vastbase reports `SELECT *` labels upper-cased while the primary-key
+    /// metadata keeps the stored lower-case spelling (#8797). The grid badges
+    /// the column as the primary key, so the backend has to resolve it through
+    /// the same unique case-insensitive fallback instead of refusing the edit.
+    #[test]
+    fn vastbase_save_uses_unique_case_insensitive_primary_key_from_uppercased_labels() {
+        let result = prepare_data_grid_save(DataGridSaveStatementOptions {
+            database_type: Some(DatabaseType::Vastbase),
+            identifier_quote: None,
+            table_meta: DataGridTableMeta {
+                catalog: None,
+                database: None,
+                schema: Some("app_support".to_string()),
+                table_name: "auth_mobile_user".to_string(),
+                primary_keys: vec!["id".to_string()],
+                columns: Some(vec![column("id", "varchar", false, None), column("third_id", "varchar", true, None)]),
+            },
+            columns: vec!["ID".to_string(), "THIRD_ID".to_string()],
+            source_columns: Some(vec![Some("ID".to_string()), Some("THIRD_ID".to_string())]),
+            rows: vec![vec![json!("207515959510335490"), json!("88271")]],
+            dirty_rows: vec![(0, vec![(1, json!("88272"))])],
+            deleted_rows: vec![],
+            new_rows: vec![],
+            include_database_name: false,
+        });
+
+        assert_eq!(result.validation_error, None);
+        assert_eq!(
+            result.statements,
+            vec![
+                "UPDATE \"app_support\".\"auth_mobile_user\" SET \"THIRD_ID\" = '88272' WHERE \"id\" = '207515959510335490';"
+            ]
+        );
+    }
+
+    #[test]
+    fn rejects_vastbase_save_when_case_insensitive_primary_key_match_is_ambiguous() {
+        let result = prepare_data_grid_save(DataGridSaveStatementOptions {
+            database_type: Some(DatabaseType::Vastbase),
+            identifier_quote: None,
+            table_meta: DataGridTableMeta {
+                catalog: None,
+                database: None,
+                schema: Some("app_support".to_string()),
+                table_name: "auth_mobile_user".to_string(),
+                primary_keys: vec!["id".to_string()],
+                columns: Some(vec![
+                    column("id", "varchar", false, None),
+                    column("ID", "varchar", false, None),
+                    column("third_id", "varchar", true, None),
+                ]),
+            },
+            columns: vec!["Id".to_string(), "iD".to_string(), "THIRD_ID".to_string()],
+            source_columns: Some(vec![Some("Id".to_string()), Some("iD".to_string()), Some("THIRD_ID".to_string())]),
+            rows: vec![vec![json!("1"), json!("2"), json!("88271")]],
+            dirty_rows: vec![(0, vec![(2, json!("88272"))])],
+            deleted_rows: vec![],
+            new_rows: vec![],
+            include_database_name: false,
+        });
+
+        assert!(result.validation_error.as_deref().is_some_and(|error| error.contains("missing: id")));
+        assert!(result.statements.is_empty());
+        assert!(result.rollback_statements.is_empty());
     }
 
     #[test]
