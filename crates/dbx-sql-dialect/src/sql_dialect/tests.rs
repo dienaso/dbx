@@ -1,5 +1,5 @@
-use super::*;
 use super::identifiers::quote_gaussdb_jdbc_identifier;
+use super::*;
 use crate::models::connection::DatabaseType;
 
 #[test]
@@ -1712,20 +1712,40 @@ fn postgres_family_table_data_quoting_resolves_folded_identifiers() {
     assert_eq!(quote_gaussdb_jdbc_identifier("term", "\""), "term");
 
     assert_eq!(
-        table_data_qualified_table_name(Some(DatabaseType::Postgres), Some("term"), "mss_check_sales_item", quote.as_deref()),
+        table_data_qualified_table_name(
+            Some(DatabaseType::Postgres),
+            Some("term"),
+            "mss_check_sales_item",
+            quote.as_deref()
+        ),
         "term.mss_check_sales_item"
     );
     assert_eq!(
-        table_data_qualified_table_name(Some(DatabaseType::Postgres), Some("term"), "MSS_CHECK_SALES_ITEM", quote.as_deref()),
+        table_data_qualified_table_name(
+            Some(DatabaseType::Postgres),
+            Some("term"),
+            "MSS_CHECK_SALES_ITEM",
+            quote.as_deref()
+        ),
         "term.\"MSS_CHECK_SALES_ITEM\""
     );
     assert_eq!(
-        table_data_qualified_table_name(Some(DatabaseType::Gaussdb), Some("term"), "mss_check_sales_item", quote.as_deref()),
+        table_data_qualified_table_name(
+            Some(DatabaseType::Gaussdb),
+            Some("term"),
+            "mss_check_sales_item",
+            quote.as_deref()
+        ),
         "term.mss_check_sales_item"
     );
     // Engines outside the GaussDB/PG identifier-quote path quote both parts.
     assert_eq!(
-        table_data_qualified_table_name(Some(DatabaseType::Jdbc), Some("term"), "mss_check_sales_item", quote.as_deref()),
+        table_data_qualified_table_name(
+            Some(DatabaseType::Jdbc),
+            Some("term"),
+            "mss_check_sales_item",
+            quote.as_deref()
+        ),
         "\"term\".\"mss_check_sales_item\""
     );
 }
