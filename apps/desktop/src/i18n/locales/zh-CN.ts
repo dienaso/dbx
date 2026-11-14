@@ -7379,6 +7379,7 @@ export default withEnglishFallback({
     restore: "恢复",
     remove: "移除",
     copySelectedColumns: "复制选中的 {count} 个字段",
+    copySelectedRows: "复制选中的 {count} 行",
     dropSelectedColumns: "删除选中的 {count} 个字段",
     dragColumn: "拖拽调整字段顺序",
     localColumnOrderNotice: "字段顺序仅保存在本地，不会修改数据库表结构。",

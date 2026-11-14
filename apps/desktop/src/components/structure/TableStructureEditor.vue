@@ -2176,6 +2176,33 @@ function structureColumnClipboardText(): string {
   );
 }
 
+/**
+ * Plain-text copy for field rows picked from the context menu: the same TSV shape
+ * as Ctrl+C (all copyable grid columns), but for the target rows regardless of the
+ * header-column selection, and without requiring add-column capability (#14945).
+ */
+function structureColumnRowsClipboardText(targets: EditableStructureColumn[]): string {
+  const labels = copyableStructureColumnLabels.value;
+  const rows = targets.filter((column) => !column.markedForDrop).map((column) => labels.map((label) => structureColumnClipboardValue(column, label.key)));
+  if (rows.length === 0) return "";
+  return formatTsv(
+    labels.map((label) => label.label),
+    rows,
+    "",
+  );
+}
+
+async function copyStructureColumnRows(targets: EditableStructureColumn[]) {
+  const text = structureColumnRowsClipboardText(targets);
+  if (!text) return;
+  try {
+    await copyToClipboard(text);
+    toast(t("grid.copied"));
+  } catch (e: any) {
+    toast(t("grid.copyFailed", { message: e?.message || String(e) }), 5000);
+  }
+}
+
 function setStructureColumnSelection(keys: Iterable<string>, anchorKey: string | null) {
   // Clears first: setColumnSelection also resets the header-column keys.
   clearColumnSelection();
@@ -5747,8 +5774,18 @@ function columnContextMenuItems(column: EditableStructureColumn): ContextMenuIte
   const targets = isBatchContext ? selectedColumnsInOrder() : [column];
   const count = targets.length;
   const allDroppable = targets.every((item) => !item.original || canDropColumn(item));
+  // Plain text copy (same TSV shape as Ctrl+C): works read-only, unlike the row
+  // duplication below. Right-clicking a row inside the multi-selection copies the
+  // whole selection; a row outside it copies just that row (#14945).
+  const copyTargets = selectedColumnIds.value.has(column.id) ? targets : [column];
+  const copyBatch = copyTargets.length > 1;
   return [
     ...columnIndexContextMenuItems(targets),
+    {
+      label: copyBatch ? t("structureEditor.copySelectedRows", { count: copyTargets.length }) : t("common.copy"),
+      icon: Copy,
+      action: () => void copyStructureColumnRows(copyTargets),
+    },
     {
       label: isBatchContext ? t("structureEditor.copySelectedColumns", { count }) : t("structureEditor.copyColumn"),
       icon: Copy,
@@ -6499,6 +6536,30 @@ async function copyPreviewSql() {
   if (sqlPreviewPending.value || sqlPreviewLoading.value || !previewSqlText.value.trim()) return;
   try {
     await copyToClipboard(previewSqlText.value);
+    toast(t("grid.copied"));
+  } catch (e: any) {
+    toast(t("grid.copyFailed", { message: e?.message || String(e) }), 5000);
+  }
+}
+
+function ddlContextMenuItems(): ContextMenuItem[] {
+  return [{ label: t("common.copy"), icon: Copy, action: () => void copyDdlSelectionOrContent() }];
+}
+
+/**
+ * Right-click copy for the read-only DDL view: copy the current selection when
+ * one exists and the whole DDL otherwise (matching the toolbar's 复制 DDL
+ * button for the no-selection case) (#14945).
+ */
+async function copyDdlSelectionOrContent() {
+  const view = ddlEditorView.value;
+  if (!view) return copyDdlContent();
+  const selection = view.state.selection.main;
+  if (selection.empty) return copyDdlContent();
+  const text = view.state.sliceDoc(selection.from, selection.to);
+  if (!text.trim()) return copyDdlContent();
+  try {
+    await copyToClipboard(text);
     toast(t("grid.copied"));
   } catch (e: any) {
     toast(t("grid.copyFailed", { message: e?.message || String(e) }), 5000);
@@ -10028,8 +10089,10 @@ watch(
                 </Button>
               </div>
               <p v-if="ddlLoadError" role="alert" class="pt-10 text-sm text-destructive">{{ ddlLoadError }}</p>
-              <div v-else ref="ddlEditorContainer" class="structure-ddl-editor h-full min-h-full min-w-0 w-full"></div>
-              <EditorSearchPanel v-if="ddlEditorView && !ddlLoadError" ref="ddlSearchPanelRef" :view="ddlEditorView" @open="ddlSearchOpen = true" @close="ddlSearchOpen = false" />
+              <CustomContextMenu v-else :items="ddlContextMenuItems" v-slot="ddlContextMenuSlot">
+                <div ref="ddlEditorContainer" class="structure-ddl-editor h-full min-h-full min-w-0 w-full" @contextmenu="ddlContextMenuSlot.onContextMenu"></div>
+                <EditorSearchPanel v-if="ddlEditorView && !ddlLoadError" ref="ddlSearchPanelRef" :view="ddlEditorView" @open="ddlSearchOpen = true" @close="ddlSearchOpen = false" />
+              </CustomContextMenu>
             </template>
           </TabsContent>
         </Tabs>

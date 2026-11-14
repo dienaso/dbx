@@ -38,6 +38,7 @@ vi.mock("@lucide/vue", async () => {
     Check: Icon,
     ChevronDown: Icon,
     ChevronUp: Icon,
+    ChevronRight: Icon,
     ClipboardList: Icon,
     Copy: Icon,
     Database: Icon,
@@ -459,6 +460,48 @@ describe("TableStructureEditor column selection copy shortcuts", () => {
     // Labels and yes/no literals come back as raw i18n keys because the test
     // i18n mock is the identity; the base type of `varchar(64)` is `varchar`.
     expect(mocks.copyToClipboard).toHaveBeenCalledWith("structureEditor.columnName\tstructureEditor.dataType\tstructureEditor.nullable\nid\tint\tstructureEditor.no\nname\tvarchar\tstructureEditor.yes");
+    await vi.waitFor(() => expect(mocks.toast).toHaveBeenCalledWith("grid.copied"), { timeout: 3000 });
+  });
+
+  it("offers plain copy in the column context menu and copies that row (#14945)", async () => {
+    const root = await mountEditor(draftWithColumns(defaultSeed()));
+
+    // Right-click a column row that is not part of any selection: the menu has to
+    // offer a plain 复制 that works read-only (unlike 复制字段, which duplicates the
+    // column and is disabled without add-column capability).
+    const row = root.querySelector<HTMLElement>('tr[data-column-id="existing:id"]')!;
+    row.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2, clientX: 10, clientY: 10 }));
+    await nextTick();
+
+    const menu = await vi.waitFor(() => {
+      const menu = document.body.querySelector<HTMLElement>("[data-dbx-context-menu]");
+      expect(menu).not.toBeNull();
+      return menu!;
+    });
+    const copyItem = [...menu.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.trim() === "common.copy");
+    expect(copyItem).toBeDefined();
+    copyItem!.click();
+
+    await vi.waitFor(() => expect(mocks.copyToClipboard).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    // All copyable grid columns as the header, just the right-clicked row as data.
+    // The copy mirrors the grid: every copyable column as the header, the
+    // right-clicked row as data.
+    expect(mocks.copyToClipboard).toHaveBeenCalledWith(
+      [
+        "structureEditor.columnName",
+        "structureEditor.dataType",
+        "structureEditor.length",
+        "structureEditor.nullable",
+        "structureEditor.primaryKey",
+        "structureEditor.defaultValue",
+        "structureEditor.comment",
+        "structureEditor.characterSet",
+        "structureEditor.collation",
+        "structureEditor.extendedProperties",
+      ].join("\t") +
+        "\n" +
+        ["id", "int", "", "structureEditor.no", "structureEditor.yes", "", "", "", "", ""].join("\t"),
+    );
     await vi.waitFor(() => expect(mocks.toast).toHaveBeenCalledWith("grid.copied"), { timeout: 3000 });
   });
 
